@@ -1,26 +1,33 @@
-const socket = io();
+const socket = new WebSocket("ws://127.0.0.1:3000");
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-// estado del server
 let players = {};
 
-// input local (teclado)
 let input = {
   left: false,
   right: false,
   jump: false
 };
 
-// recibir estado del server
-socket.on("state", (serverPlayers) => {
-  players = serverPlayers;
-});
+socket.onopen = () => {
+  console.log("🟢 CONECTADO AL SERVER");
+};
 
-// =====================
-// 🎮 CONTROLES TECLADO
-// =====================
+socket.onerror = (e) => {
+  console.log("🔴 ERROR WS", e);
+};
+
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  if (data.type === "state") {
+    players = data.players;
+  }
+};
+
+// teclado
 document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") input.left = true;
   if (e.key === "ArrowRight") input.right = true;
@@ -33,36 +40,38 @@ document.addEventListener("keyup", (e) => {
   if (e.key === "ArrowUp") input.jump = false;
 });
 
-// mandar input al server (30 FPS)
+// enviar input
 setInterval(() => {
-  socket.emit("input", input);
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "input",
+      input
+    }));
+  }
 }, 1000 / 30);
 
-// =====================
-// 🎨 RENDER
-// =====================
+// render
 function draw() {
-  // limpiar pantalla
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // fondo
   ctx.fillStyle = "#87CEEB";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // suelo
   ctx.fillStyle = "#333";
   ctx.fillRect(0, 400, 800, 50);
 
-  // jugadores
+  // debug
+  ctx.fillStyle = "black";
+  ctx.fillText("Players: " + Object.keys(players).length, 10, 20);
+
   for (let id in players) {
     const p = players[id];
 
-    ctx.fillStyle = p.color || "black";
+    ctx.fillStyle = p.color;
     ctx.fillRect(p.x, p.y, 40, 40);
   }
 
   requestAnimationFrame(draw);
 }
 
-// iniciar loop
 draw();

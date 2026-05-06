@@ -1,54 +1,76 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+const players = {};
+const sockets = new Set();
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const server = Bun.serve({
+  port: 3000,
+  hostname: "0.0.0.0",
 
-app.use(express.static("public"));
+  fetch(req, server) {
+    // 🔥 ESTO SIEMPRE PRIMERO
+    if (server.upgrade(req)) return;
 
-let players = {};
-const MAX_PLAYERS = 4;
+    const url = new URL(req.url);
 
-io.on("connection", (socket) => {
-  console.log("Jugador conectado:", socket.id);
+    if (url.pathname === "/") {
+      return new Response(Bun.file("./public/index.html"));
+    }
 
-  if (Object.keys(players).length >= MAX_PLAYERS) {
-    socket.emit("full");
-    return;
+    if (url.pathname === "/game.js") {
+      return new Response(Bun.file("./public/game.js"));
+    }
+
+    if (url.pathname === "/controller.html") {
+      return new Response(Bun.file("./public/controller.html"));
+    }
+
+    return new Response("Not found", { status: 404 });
+  },
+
+  websocket: {
+    open(ws) {
+      ws.id = crypto.randomUUID();
+      sockets.add(ws);
+
+      players[ws.id] = {
+        x: 200,
+        y: 300,
+        vx: 0,
+        vy: 0,
+        input: { left: false, right: false, jump: false },
+        color: "red"
+      };
+
+      console.log("🟢 Jugador conectado:", ws.id);
+    },
+
+    message(ws, message) {
+      const data = JSON.parse(message);
+
+      if (data.type === "input") {
+        players[ws.id].input = data.input;
+      }
+    },
+
+    close(ws) {
+      sockets.delete(ws);
+      delete players[ws.id];
+      console.log("🔴 Jugador desconectado");
+    }
   }
-
-  players[socket.id] = {
-    x: 100 + Math.random() * 200,
-    y: 300,
-    vx: 0,
-    vy: 0,
-    input: {},
-    color: getColor()
-  };
-
-  socket.emit("init", { id: socket.id });
-
-  socket.on("input", (input) => {
-    players[socket.id].input = input;
-  });
-
-  socket.on("disconnect", () => {
-    delete players[socket.id];
-    console.log("Jugador desconectado:", socket.id);
-  });
 });
 
-// loop 30 FPS
+// LOOP
 setInterval(() => {
-  updatePhysics();
-  io.emit("state", players);
+  updatePhysics(); // 👈 ESTO FALTABA
+
+  const state = JSON.stringify({
+    type: "state",
+    players
+  });
+
+  sockets.forEach(ws => ws.send(state));
 }, 1000 / 30);
 
-// física básica
 function updatePhysics() {
   const gravity = 0.5;
   const ground = 400;
@@ -79,17 +101,10 @@ function updatePhysics() {
       p.vy = 0;
     }
 
-    // paredes
+    // límites
     if (p.x < 0) p.x = 0;
-    if (p.x > 800) p.x = 800;
+    if (p.x > 760) p.x = 760;
   }
 }
 
-function getColor() {
-  const colors = ["red", "blue", "green", "yellow"];
-  return colors[Math.floor(Math.random() * colors.length)];
-}
-
-server.listen(3000, () => {
-  console.log("Servidor corriendo en http://localhost:3000");
-});
+console.log("Servidor corriendo en http://localhost:3000");
