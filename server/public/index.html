@@ -1,12 +1,27 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <title>Pico Park Clone</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Game</title>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #222;
+    }
+
+    canvas {
+      display: block;
+      background: #333;
+    }
+  </style>
 </head>
 <body>
-  <h2>Juego corriendo...</h2>
-  <canvas id="game" width="800" height="450"></canvas>
 
-  <script src="game.js"></script>
+<canvas id="game"></canvas>
+
+<script src="/game.js"></script>
 </body>
 </html>
