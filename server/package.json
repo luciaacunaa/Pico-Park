@@ -4,6 +4,7 @@
   "main": "server.js",
   "dependencies": {
     "elysia": "^1.4.28",
+    "expo": "^56.0.5",
     "express": "^4.18.2",
     "react": "^19.2.6",
     "react-native": "^0.85.3",
