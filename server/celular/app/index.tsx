@@ -18,16 +18,27 @@ export default function App() {
 
   const [ip, setIp] = useState("");
   const [showModal, setShowModal] = useState(true);
+  const [playerId, setPlayerId] = useState<number | null>(null);
 
   const connectWebSocket = () => {
     if (!ip) return;
 
-    socket.current = new WebSocket(`ws://${ip}:3000`);
+    socket.current = new WebSocket(`ws://${ip}:3000?type=controller`);
 
     socket.current.onopen = () => {
       console.log("Conectado");
       setConnected(true);
       setShowModal(false);
+    };
+
+    socket.current.onmessage = (event: any) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "assignId") {
+        setPlayerId(data.playerId);
+
+        console.log("Mi ID es:", data.playerId);
+      }
     };
 
     socket.current.onclose = () => {
@@ -47,9 +58,15 @@ export default function App() {
   }, []);
 
   const send = (action: string) => {
-    if (socket.current?.readyState === WebSocket.OPEN) {
-      socket.current.send(action);
-      console.log(action);
+    if (socket.current?.readyState === WebSocket.OPEN && playerId !== null) {
+      socket.current.send(
+        JSON.stringify({
+          playerId,
+          action,
+        }),
+      );
+
+      console.log(`Jugador ${playerId}:`, action);
     }
   };
 
@@ -87,14 +104,18 @@ export default function App() {
       <View style={styles.gamepad}>
         {/* D-PAD */}
         <View style={styles.pad}>
-          <TouchableOpacity style={styles.button} onPressIn={() => send("up")}>
+          <TouchableOpacity
+            style={styles.button}
+            onPressIn={() => send("jump")}
+          >
             <Text style={styles.buttonText}>↑</Text>
           </TouchableOpacity>
 
           <View style={styles.row}>
             <TouchableOpacity
               style={styles.button}
-              onPressIn={() => send("left")}
+              onPressIn={() => send("leftDown")}
+              onPressOut={() => send("leftUp")}
             >
               <Text style={styles.buttonText}>←</Text>
             </TouchableOpacity>
@@ -103,7 +124,8 @@ export default function App() {
 
             <TouchableOpacity
               style={styles.button}
-              onPressIn={() => send("right")}
+              onPressIn={() => send("rightDown")}
+              onPressOut={() => send("rightUp")}
             >
               <Text style={styles.buttonText}>→</Text>
             </TouchableOpacity>

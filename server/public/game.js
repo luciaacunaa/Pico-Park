@@ -4,52 +4,170 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-const player = {
-  x: 100,
-  y: 100,
-  size: 50,
-  speed: 10,
-};
+const gravity = 0.8;
 
-const socket = new WebSocket("ws://localhost:3000");
+const players = {};
 
-socket.onopen = () => {
-  console.log("WebSocket conectado");
-};
+const platforms = [
+  {
+    x: 0,
+    y: canvas.height - 50,
+    width: canvas.width,
+    height: 50,
+  },
+
+  {
+    x: 300,
+    y: 500,
+    width: 250,
+    height: 30,
+  },
+
+  {
+    x: 700,
+    y: 400,
+    width: 250,
+    height: 30,
+  },
+];
+
+const colors = ["red", "blue", "green", "yellow", "purple"];
+
+const socket = new WebSocket("ws://localhost:3000?type=game");
 
 socket.onmessage = (event) => {
-  const action = event.data;
+  const data = JSON.parse(event.data);
 
-  if (action === "up") {
-    player.y -= player.speed;
+  // NUEVO JUGADOR
+  if (data.type === "newPlayer") {
+    players[data.playerId] = {
+      x: 100 + Object.keys(players).length * 80,
+      y: 100,
+
+      width: 50,
+      height: 50,
+
+      speed: 5,
+
+      velocityY: 0,
+      jumpForce: -15,
+
+      grounded: false,
+
+      left: false,
+      right: false,
+
+      color: colors[Object.keys(players).length % colors.length],
+    };
+
+    console.log("Jugador creado:", data.playerId);
   }
 
-  if (action === "down") {
-    player.y += player.speed;
+  // ELIMINAR JUGADOR
+  if (data.type === "removePlayer") {
+    delete players[data.playerId];
   }
 
-  if (action === "left") {
-    player.x -= player.speed;
-  }
+  // INPUTS
+  if (data.playerId) {
+    const player = players[data.playerId];
 
-  if (action === "right") {
-    player.x += player.speed;
-  }
+    if (!player) return;
 
-  draw();
+    if (data.action === "leftDown") {
+      player.left = true;
+    }
+
+    if (data.action === "leftUp") {
+      player.left = false;
+    }
+
+    if (data.action === "rightDown") {
+      player.right = true;
+    }
+
+    if (data.action === "rightUp") {
+      player.right = false;
+    }
+
+    if (data.action === "jump" && player.grounded) {
+      player.velocityY = player.jumpForce;
+
+      player.grounded = false;
+    }
+  }
 };
+
+function update() {
+  for (const id in players) {
+    const player = players[id];
+
+    if (player.left) {
+      player.x -= player.speed;
+    }
+
+    if (player.right) {
+      player.x += player.speed;
+    }
+
+    player.velocityY += gravity;
+
+    player.y += player.velocityY;
+
+    player.grounded = false;
+
+    for (const platform of platforms) {
+      if (
+        player.x < platform.x + platform.width &&
+        player.x + player.width > platform.x &&
+        player.y + player.height >= platform.y &&
+        player.y + player.height <= platform.y + 20 &&
+        player.velocityY >= 0
+      ) {
+        player.y = platform.y - player.height;
+
+        player.velocityY = 0;
+
+        player.grounded = true;
+      }
+    }
+  }
+}
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "red";
+  ctx.fillStyle = "#222";
 
-  ctx.fillRect(
-    player.x,
-    player.y,
-    player.size,
-    player.size
-  );
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#888";
+
+  for (const platform of platforms) {
+    ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+  }
+
+  for (const id in players) {
+    const player = players[id];
+
+    ctx.fillStyle = player.color;
+
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+
+    ctx.fillStyle = "white";
+
+    ctx.font = "20px Arial";
+
+    ctx.fillText(id, player.x + 18, player.y + 30);
+  }
 }
 
-draw();
+function gameLoop() {
+  update();
+
+  draw();
+
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
