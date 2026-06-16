@@ -38,7 +38,7 @@ const socket = new WebSocket("ws://localhost:3000?type=game");
 socket.onmessage = (event) => {
   const data = JSON.parse(event.data);
 
-  // NUEVO JUGADOR
+  // Nuevo jugador
   if (data.type === "newPlayer") {
     players[data.playerId] = {
       x: 100 + Object.keys(players).length * 80,
@@ -63,12 +63,12 @@ socket.onmessage = (event) => {
     console.log("Jugador creado:", data.playerId);
   }
 
-  // ELIMINAR JUGADOR
+  // Jugador desconectado
   if (data.type === "removePlayer") {
     delete players[data.playerId];
   }
 
-  // INPUTS
+  // Inputs
   if (data.playerId) {
     const player = players[data.playerId];
 
@@ -102,20 +102,51 @@ function update() {
   for (const id in players) {
     const player = players[id];
 
+    // Movimiento horizontal
+    let moveX = 0;
+
     if (player.left) {
-      player.x -= player.speed;
+      moveX -= player.speed;
     }
 
     if (player.right) {
-      player.x += player.speed;
+      moveX += player.speed;
     }
 
+    player.x += moveX;
+
+    // Colisión lateral con otros jugadores
+    for (const otherId in players) {
+      if (id === otherId) {
+        continue;
+      }
+
+      const other = players[otherId];
+
+      if (
+        player.x < other.x + other.width &&
+        player.x + player.width > other.x &&
+        player.y < other.y + other.height &&
+        player.y + player.height > other.y
+      ) {
+        if (moveX > 0) {
+          player.x = other.x - player.width;
+        }
+
+        if (moveX < 0) {
+          player.x = other.x + other.width;
+        }
+      }
+    }
+
+    // Gravedad
     player.velocityY += gravity;
 
     player.y += player.velocityY;
 
     player.grounded = false;
 
+    // Plataformas
     for (const platform of platforms) {
       if (
         player.x < platform.x + platform.width &&
@@ -131,22 +162,57 @@ function update() {
         player.grounded = true;
       }
     }
+
+    // Colisión vertical con otros jugadores
+    for (const otherId in players) {
+      if (id === otherId) {
+        continue;
+      }
+
+      const other = players[otherId];
+
+      if (
+        player.x < other.x + other.width &&
+        player.x + player.width > other.x &&
+        player.y + player.height >= other.y &&
+        player.y + player.height <= other.y + 20 &&
+        player.velocityY >= 0
+      ) {
+        player.y = other.y - player.height;
+
+        player.velocityY = 0;
+
+        player.grounded = true;
+      }
+    }
+
+    // Límites de pantalla
+    if (player.x < 0) {
+      player.x = 0;
+    }
+
+    if (player.x + player.width > canvas.width) {
+      player.x = canvas.width - player.width;
+    }
   }
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Fondo
   ctx.fillStyle = "#222";
 
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Plataformas
   ctx.fillStyle = "#888";
 
   for (const platform of platforms) {
     ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
   }
 
+  // Jugadores
   for (const id in players) {
     const player = players[id];
 
