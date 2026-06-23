@@ -47,7 +47,6 @@ const boxes = [
     velocityY: 0,
     grounded: false,
     speed: 3, // velocidad fija al moverse, NO se suma con más empujadores
-    requiredPushers: 2, // jugadores necesarios del mismo lado para moverla
     pushersLeft: new Set(),
     pushersRight: new Set(),
   },
@@ -341,48 +340,35 @@ function update() {
       respawnPlayer(player);
     }
   }
+   const connectedPlayers = Object.keys(players).length;
 
-  // NUEVO: mover cada caja según quién la está empujando (velocidad fija, no se suma)
-  for (const box of boxes) {
-    let moved = 0;
+for (const box of boxes) {
+  let moved = 0;
 
-    if (box.pushersRight.size >= box.requiredPushers) {
-      moved = box.speed;
-      // Si en algún nivel querés que sea más rápida con más gente, sería algo como:
-      // moved = box.speed + (box.pushersRight.size - box.requiredPushers) * BONUS
-    } else if (box.pushersLeft.size >= box.requiredPushers) {
-      moved = -box.speed;
-    }
+  if (
+    connectedPlayers > 0 &&
+    box.pushersRight.size === connectedPlayers
+  ) {
+    moved = box.speed;
+  } else if (
+    connectedPlayers > 0 &&
+    box.pushersLeft.size === connectedPlayers
+  ) {
+    moved = -box.speed;
+  }
 
-    if (moved !== 0) {
-      box.x += moved;
+  if (moved !== 0) {
+    box.x += moved;
 
-      // arrastramos a los que la empujan para que no se "despeguen" de la caja
-      const pushers = moved > 0 ? box.pushersRight : box.pushersLeft;
-      for (const pusherId of pushers) {
-        players[pusherId].x += moved;
-      }
-    }
+    const pushers = moved > 0
+      ? box.pushersRight
+      : box.pushersLeft;
 
-    // gravedad simple para la caja
-    box.velocityY += gravity;
-    box.y += box.velocityY;
-    box.grounded = false;
-
-    for (const platform of platforms) {
-      if (
-        box.x < platform.x + platform.width &&
-        box.x + box.width > platform.x &&
-        box.y + box.height >= platform.y &&
-        box.y + box.height <= platform.y + 20 &&
-        box.velocityY >= 0
-      ) {
-        box.y = platform.y - box.height;
-        box.velocityY = 0;
-        box.grounded = true;
-      }
+    for (const pusherId of pushers) {
+      players[pusherId].x += moved;
     }
   }
+}
 
   // NUEVO: la llave sigue a quien la está cargando
   if (key.carriedBy !== null) {
@@ -405,14 +391,14 @@ function update() {
   // NUEVO: condición de victoria — puerta abierta + los 4 jugadores en la zona de salida
   const playerIds = Object.keys(players);
 
-  if (
-    !gameWon &&
-    !door.locked &&
-    playerIds.length === REQUIRED_PLAYERS &&
-    playerIds.every((id) => overlap(players[id], exitZone))
-  ) {
-    gameWon = true;
-  }
+if (
+  !gameWon &&
+  !door.locked &&
+  playerIds.length > 0 &&
+  playerIds.every((id) => overlap(players[id], exitZone))
+) {
+  gameWon = true;
+}
 }
 
 function draw() {
